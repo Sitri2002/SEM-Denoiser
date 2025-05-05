@@ -8,7 +8,7 @@ class SEMData(Dataset):
         self.image_paths = [os.path.join(image_dir, f) 
                             for f in os.listdir(image_dir) if f.endswith('.jpg')]
         self.transform = transform or transforms.Compose([
-            transforms.Grayscale(num_output_channels=1),
+            transforms.Grayscale(num_output_channels=1), # all images are 1024 x 768, no resize
             transforms.ToTensor()
         ])
 
@@ -19,4 +19,7 @@ class SEMData(Dataset):
         image = Image.open(self.image_paths[idx]).convert('L')
         image = self.transform(image)
         return image
+
+set = SEMData("dataset/Patterned_surface")
+print(set.__len__())
 
