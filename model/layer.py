@@ -127,7 +127,7 @@ class Deconv2d(nn.Module):
     def __init__(self, nch_in, nch_out, kernel_size=4, stride=1, padding=1, output_padding=0, bias=True):
         super(Deconv2d, self).__init__()
         self.deconv = nn.ConvTranspose2d(nch_in, nch_out, kernel_size=kernel_size, stride=stride, padding=padding, output_padding=output_padding, bias=bias)
-        
+
     def forward(self, x):
         return self.deconv(x)
 
@@ -251,6 +251,6 @@ class SSIM2dLoss(nn.Module):
     def __init__(self):
         super(SSIM2dLoss, self).__init__()
 
-    def forward(self, input, targer):
+    def forward(self, input, target):
         loss = 0
         return loss
