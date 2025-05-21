@@ -2,3 +2,4 @@ dataset/*/
 log/
 __pycache__/
 results/
+checkpoints/
