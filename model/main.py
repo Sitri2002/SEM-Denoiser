@@ -17,7 +17,7 @@ parser.add_argument('--gpu_ids', default='-1', dest='gpu_ids')
 parser.add_argument('--dir_checkpoint', default='./checkpoints', dest='dir_checkpoint')
 parser.add_argument('--dir_log', default='./log', dest='dir_log')
 parser.add_argument('--dir_result', default='./results', dest='dir_result')
-parser.add_argument('--dir_data', default='../dataset', dest='dir_data')
+parser.add_argument('--dir_data', default='./dataset', dest='dir_data')
 
 parser.add_argument('--mode', default='train', choices=['train', 'test'], dest='mode')
 parser.add_argument('--train_continue', default='on', choices=['on', 'off'], dest='train_continue')
@@ -27,7 +27,7 @@ parser.add_argument('--norm', type=str, default='bnorm', dest='norm')
 
 parser.add_argument('--name_data', type=str, default='Patterned_surface', dest='name_data')
 
-parser.add_argument('--num_epoch', type=int,  default=300, dest='num_epoch')
+parser.add_argument('--num_epoch', type=int,  default=30, dest='num_epoch')
 parser.add_argument('--batch_size', type=int, default=1, dest='batch_size')
 
 parser.add_argument('--lr_G', type=float, default=1e-3, dest='lr_G')
