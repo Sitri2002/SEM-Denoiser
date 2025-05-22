@@ -60,6 +60,8 @@ parser.add_argument('--gan', type=int, default=0, dest='gan')
 parser.add_argument('--lambda_pix', type=int, default=100, dest='lambda_pix') # regularization loss coeff
 parser.add_argument('--lambda_adv', type=int, default=1, dest='lambda_adv') # gan loss coeff
 
+parser.add_argument('--checkpoint', type=int, default=-1, dest='checkpoint')
+
 PARSER = Parser(parser)
 
 def main():

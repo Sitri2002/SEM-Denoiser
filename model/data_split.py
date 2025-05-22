@@ -3,6 +3,18 @@ import random
 import shutil
 from glob import glob
 
+def merge_subdirs(category_path, exts):
+    for split in ['train', 'val', 'test']:
+        split_dir = os.path.join(category_path, split)
+        if os.path.exists(split_dir):
+            for f in glob(os.path.join(split_dir, '*')):
+                if os.path.splitext(f)[-1].lower() in exts:
+                    shutil.move(f, os.path.join(category_path, os.path.basename(f)))
+            try:
+                os.rmdir(split_dir)
+            except OSError:
+                pass
+
 def split_dataset(base_dir, train_ratio=0.7, val_ratio=0.2, test_ratio=0.1, exts=['.jpg', '.png', '.jpeg', '.bmp']):
     assert abs(train_ratio + val_ratio + test_ratio - 1.0) < 1e-6, "Ratios must sum to 1.0"
 
@@ -13,6 +25,8 @@ def split_dataset(base_dir, train_ratio=0.7, val_ratio=0.2, test_ratio=0.1, exts
             continue
 
         print(f"Processing category: {category}")
+
+        merge_subdirs(category_path, exts)
 
         # Collect image paths
         image_paths = [f for f in glob(os.path.join(category_path, '*')) if os.path.splitext(f)[-1].lower() in exts]

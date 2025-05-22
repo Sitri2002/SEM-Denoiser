@@ -60,6 +60,8 @@ class Train:
         self.lambda_pix = args.lambda_pix
         self.lambda_adv = args.lambda_adv
 
+        self.checkpoint = args.checkpoint
+
         if self.gpu_ids and torch.cuda.is_available():
             print("CUDA DETECTED")
             self.device = torch.device("cuda:%d" % self.gpu_ids[0])
@@ -82,8 +84,9 @@ class Train:
                 return netG, optimG, epoch
             elif mode == 'test':
                 return netG, epoch
-
-        if not epoch:
+            
+        epoch = self.checkpoint
+        if not epoch and self.checkpoint == -1:
             ckpt = os.listdir(dir_chck)
             ckpt.sort()
             epoch = int(ckpt[-1].split('epoch')[1].split('.pth')[0])
