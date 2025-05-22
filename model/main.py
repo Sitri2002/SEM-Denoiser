@@ -12,7 +12,7 @@ cudnn.fastest = True
 parser = argparse.ArgumentParser(description='Train the unet network',
                                  formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
-parser.add_argument('--gpu_ids', default='-1', dest='gpu_ids')
+parser.add_argument('--gpu_ids', default='0', dest='gpu_ids')
 
 parser.add_argument('--dir_checkpoint', default='./checkpoints', dest='dir_checkpoint')
 parser.add_argument('--dir_log', default='./log', dest='dir_log')
@@ -27,7 +27,7 @@ parser.add_argument('--norm', type=str, default='bnorm', dest='norm')
 
 parser.add_argument('--name_data', type=str, default='Patterned_surface', dest='name_data')
 
-parser.add_argument('--num_epoch', type=int,  default=30, dest='num_epoch')
+parser.add_argument('--num_epoch', type=int,  default=10, dest='num_epoch')
 parser.add_argument('--batch_size', type=int, default=1, dest='batch_size')
 
 parser.add_argument('--lr_G', type=float, default=1e-3, dest='lr_G')
@@ -51,8 +51,14 @@ parser.add_argument('--nch_ker', type=int, default=64, dest='nch_ker')
 
 parser.add_argument('--data_type', default='float32', dest='data_type')
 
-parser.add_argument('--num_freq_disp', type=int,  default=10, dest='num_freq_disp')
-parser.add_argument('--num_freq_save', type=int,  default=50, dest='num_freq_save')
+parser.add_argument('--num_freq_disp', type=int,  default=1, dest='num_freq_disp')
+parser.add_argument('--num_freq_save', type=int,  default=1, dest='num_freq_save')
+
+parser.add_argument('--loss', type=int, default=1, dest='loss')
+parser.add_argument('--net', type=str, default='resnet', dest='net')
+parser.add_argument('--gan', type=int, default=0, dest='gan')
+parser.add_argument('--lambda_pix', type=int, default=100, dest='lambda_pix') # regularization loss coeff
+parser.add_argument('--lambda_adv', type=int, default=1, dest='lambda_adv') # gan loss coeff
 
 PARSER = Parser(parser)
 

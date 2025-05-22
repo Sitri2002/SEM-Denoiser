@@ -53,7 +53,15 @@ class Train:
 
         self.gpu_ids = args.gpu_ids
 
+        self.loss = args.loss
+        self.net = args.net
+        self.gan = args.gan
+
+        self.lambda_pix = args.lambda_pix
+        self.lambda_adv = args.lambda_adv
+
         if self.gpu_ids and torch.cuda.is_available():
+            print("CUDA DETECTED")
             self.device = torch.device("cuda:%d" % self.gpu_ids[0])
             torch.cuda.set_device(self.gpu_ids[0])
         else:
@@ -68,7 +76,6 @@ class Train:
                    '%s/model_epoch%04d.pth' % (dir_chck, epoch))
 
     def load(self, dir_chck, netG, optimG=[], epoch=[], mode='train'):
-
         if not os.path.exists(dir_chck) or not os.listdir(dir_chck):
             epoch = 0
             if mode == 'train':
@@ -122,6 +129,9 @@ class Train:
         num_freq_disp = self.num_freq_disp
         num_freq_save = self.num_freq_save
 
+        net = self.net
+        loss = self.loss
+
         ## setup dataset
         dir_chck = os.path.join(self.dir_checkpoint, self.scope, name_data)
 
@@ -161,14 +171,30 @@ class Train:
             cmap = None
 
         ## setup network
-        # netG = UNet(nch_in, nch_out, nch_ker, norm)
-        netG = ResNet(nch_in, nch_out, nch_ker, norm)
+        if net == 'unet':
+            print("Running on UNet")
+            netG = UNet(nch_in, nch_out, nch_ker, norm)
+        elif net == 'resnet':
+            print("Running on ResNet")
+            netG = ResNet(nch_in, nch_out, nch_ker, norm)
 
         init_net(netG, init_type='normal', init_gain=0.02, gpu_ids=gpu_ids)
 
+        if self.gan == 1:
+            print("GAN enabled")
+            netD = Discriminator(nch_out, nch_ker, norm).to(device)
+            init_net(netD, init_type='normal', init_gain=0.02, gpu_ids=gpu_ids)
+
+            optimD = torch.optim.Adam(netD.parameters(), lr=lr_G, betas=(self.beta1, 0.999))
+            fn_GAN = nn.BCEWithLogitsLoss().to(device)
+
         ## setup loss & optimization
-        fn_REG = nn.L1Loss().to(device)  # Regression loss: L1
-        # fn_REG = nn.MSELoss().to(device)     # Regression loss: L2
+        if loss == 1:
+            print('MAE Loss')
+            fn_REG = nn.L1Loss().to(device)  # Regression loss: L1
+        elif loss == 2:
+            print('MSE Loss')
+            fn_REG = nn.MSELoss().to(device)     # Regression loss: L2
 
         paramsG = netG.parameters()
 
@@ -189,7 +215,9 @@ class Train:
             netG.train()
 
             loss_G_train = []
-
+            loss_pix_train = []
+            loss_adv_train = []
+            
             for batch, data in enumerate(loader_train, 1):
                 def should(freq):
                     return freq > 0 and (batch % freq == 0 or batch == num_batch_train)
@@ -198,22 +226,76 @@ class Train:
                 input = data['input'].to(device)
                 mask = data['mask'].to(device)
 
-                # forward netG
-                output = netG(input)
+                if self.gan == 1:
+                    # train discriminator
+                    set_requires_grad(netD, True)
+                    netD.train()
+                    optimD.zero_grad()
 
-                # backward netG
-                optimG.zero_grad()
+                    with torch.no_grad():
+                        fake = netG(input)
 
-                loss_G = fn_REG(output * (1 - mask), label * (1 - mask))
+                    out_real = netD(label)
+                    out_fake = netD(fake.detach())
+
+                    real_label = torch.ones_like(out_real)
+                    fake_label = torch.zeros_like(out_fake)
+
+                    loss_D_real = fn_GAN(out_real, real_label)
+                    loss_D_fake = fn_GAN(out_fake, fake_label)
+                    loss_D = 0.5 * (loss_D_real + loss_D_fake)
+                    loss_D.backward()
+                    optimD.step()
+
+                    # train generator
+                    set_requires_grad(netD, False)
+                    netG.train()
+                    optimG.zero_grad()
+
+                    output = netG(input)
+                    out_fake_G = netD(output)
+
+                    loss_adv = fn_GAN(out_fake_G, torch.ones_like(out_fake_G))
+                    loss_pix = fn_REG(output * (1 - mask), label * (1 - mask))
+                    loss_adv_train += [loss_adv.item()]
+                    loss_pix_train += [loss_pix.item()]
+                    writer_train.add_scalar('loss/pixel', loss_pix.item(), num_batch_train * (epoch - 1) + batch)
+                    writer_train.add_scalar('loss/adversarial', loss_adv.item(), num_batch_train * (epoch - 1) + batch)
+                    
+                    running_loss_pix = 0
+                    running_loss_adv = 0
+                    alpha = 0.99  # smoothing factor
+
+                    running_loss_pix = alpha * running_loss_pix + (1 - alpha) * loss_pix.item()
+                    running_loss_adv = alpha * running_loss_adv + (1 - alpha) * loss_adv.item()
+
+                    # normalize
+                    norm_pix = 1 / (running_loss_pix + 1e-8)
+                    norm_adv = 1 / (running_loss_adv + 1e-8)
+
+                    # rescale
+                    target_ratio = self.lambda_pix / self.lambda_adv
+                    scaling_factor = (norm_pix / norm_adv) / target_ratio
+
+                    lambda_adv_scaled = self.lambda_adv * scaling_factor
+                    loss_G = self.lambda_pix * loss_pix + lambda_adv_scaled * loss_adv
+                else:
+                    # forward net G
+                    output = netG(input)
+                    # backward net G
+                    optimG.zero_grad()
+                    loss_G = fn_REG(output * (1 - mask), label * (1 - mask))
 
                 loss_G.backward()
                 optimG.step()
-
                 # get losses
                 loss_G_train += [loss_G.item()]
-
-                print('TRAIN: EPOCH %d: BATCH %04d/%04d: LOSS: %.4f'
-                      % (epoch, batch, num_batch_train, np.mean(loss_G_train)))
+                if self.gan == 0:
+                    print('TRAIN: EPOCH %d: BATCH %04d/%04d: LOSS: %.4f'
+                        % (epoch, batch, num_batch_train, np.mean(loss_G_train)))
+                else:
+                    print('TRAIN: EPOCH %d: BATCH %04d/%04d: LOSS: %.4f PIX_LOSS: %.4f ADV_LOSS: %.4f'
+                        % (epoch, batch, num_batch_train, np.mean(loss_G_train), np.mean(loss_pix_train), np.mean(loss_adv_train)))
 
                 if should(num_freq_disp):
                     ## show output
@@ -355,7 +437,8 @@ class Train:
         transform_ts2np = ToNumpy()
 
         # dataset_test = Dataset(dir_data_test, data_type=self.data_type, transform=transform_test, sgm=(0, 25))
-        dataset_test = Dataset(dir_data_test, data_type=self.data_type, transform=transform_test, sgm=25, ratio=1, size_data=size_data, size_window=size_window)
+        dataset_test = Dataset(dir_data_test, data_type=self.data_type, transform=transform_test,
+                       sgm=0, ratio=0, size_data=size_data, size_window=size_window)
         loader_test = torch.utils.data.DataLoader(dataset_test, batch_size=batch_size, shuffle=False, num_workers=16)
 
         num_test = len(dataset_test)
@@ -363,13 +446,23 @@ class Train:
         num_batch_test = int((num_test / batch_size) + ((num_test % batch_size) != 0))
 
         ## setup network
-        # netG = UNet(nch_in, nch_out, nch_ker, norm)
-        netG = ResNet(nch_in, nch_out, nch_ker, norm)
+        ## setup network
+        if self.net == 'unet':
+            print('Running on UNet')
+            netG = UNet(nch_in, nch_out, nch_ker, norm)
+        elif self.net == 'resnet':
+            print('Running on ResNet')
+            netG = ResNet(nch_in, nch_out, nch_ker, norm)
+
         init_net(netG, init_type='normal', init_gain=0.02, gpu_ids=gpu_ids)
 
         ## setup loss & optimization
-        fn_REG = nn.L1Loss().to(device)  # L1
-        # fn_REG = nn.MSELoss().to(device)  # L1
+        if self.loss == 1:
+            print('MAE Loss')
+            fn_REG = nn.L1Loss().to(device)  # Regression loss: L1
+        elif self.loss == 2:
+            print('MSE Loss')
+            fn_REG = nn.MSELoss().to(device)     # Regression loss: L2
 
         ## load from checkpoints
         st_epoch = 0
